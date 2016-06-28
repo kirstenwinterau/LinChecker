@@ -44,7 +44,7 @@ public abstract class AbstractChecker implements Cancelable
 	
     protected TLCState predErrState;
     protected TLCState errState;
-    protected boolean done;
+    protected volatile boolean done;
     protected boolean keepCallStack;
     protected boolean checkDeadlock;
     protected boolean checkLiveness;

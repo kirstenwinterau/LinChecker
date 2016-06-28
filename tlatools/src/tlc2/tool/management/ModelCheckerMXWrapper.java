@@ -9,7 +9,6 @@ import javax.management.NotCompliantMBeanException;
 import tlc2.TLC;
 import tlc2.TLCGlobals;
 import tlc2.tool.ModelChecker;
-import tlc2.tool.TLCState;
 import tlc2.tool.distributed.management.TLCStatisticsMXBean;
 import tlc2.tool.fp.DiskFPSet;
 
@@ -55,7 +54,7 @@ public class ModelCheckerMXWrapper extends TLCStandardMBean implements TLCStatis
 	 * @see tlc2.tool.distributed.management.TLCStatisticsMXBean#getStateQueueSize()
 	 */
 	public long getStateQueueSize() {
-		return modelChecker.theStateQueue.size();
+		return modelChecker.getStateQueueSizes();
 	}
 
 	/* (non-Javadoc)
@@ -125,11 +124,7 @@ public class ModelCheckerMXWrapper extends TLCStandardMBean implements TLCStatis
 	 * @see tlc2.tool.distributed.management.TLCStatisticsMXBean#getCurrentState()
 	 */
 	public String getCurrentState() {
-		final TLCState state = modelChecker.theStateQueue.sPeek();
-		if (state != null) {
-			return state.toString();
-		}
-		return "N/A";
+		return "N/A with distributed state queues";
 	}
 
 	/* (non-Javadoc)

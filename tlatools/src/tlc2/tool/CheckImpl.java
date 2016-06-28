@@ -11,6 +11,7 @@ import tlc2.tool.fp.FPSet;
 import tlc2.tool.fp.FPSetConfiguration;
 import tlc2.tool.fp.FPSetFactory;
 import tlc2.tool.queue.DiskStateQueue;
+import tlc2.tool.queue.IStateQueue;
 import util.ToolIO;
 
 /**
@@ -40,6 +41,7 @@ public abstract class CheckImpl extends ModelChecker {
     this.coverSet = FPSetFactory.getFPSet();
     this.coverSet.init(TLCGlobals.getNumWorkers(), this.metadir, specFile+"_cs");
     this.stateEnum = null;
+    this.theStateQueue = new DiskStateQueue(this.metadir);
   }
 
   /**
@@ -54,6 +56,7 @@ public abstract class CheckImpl extends ModelChecker {
   private TLCState curState;              // the current state
   private TLCTrace.Enumerator stateEnum;  // the enumerator for reachable state
   private long lastTraceTime;             // the time the last trace was generated
+  private IStateQueue theStateQueue;
   
   /**
    * The main task of initialization is to create a sufficiently large

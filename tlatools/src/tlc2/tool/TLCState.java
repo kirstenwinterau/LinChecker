@@ -19,6 +19,8 @@ import util.UniqueString;
 public abstract class TLCState implements Cloneable, Serializable {
   public long uid = -1;   // Must be set to a non-negative number
   
+  public transient TLCState next;
+
   // Set by subclasses. Cannot set until we know what the variables are.
   public static TLCState Empty = null;
 
