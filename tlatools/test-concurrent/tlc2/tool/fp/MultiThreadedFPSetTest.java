@@ -18,7 +18,7 @@ import tlc2.tool.fp.generator.LongVecFingerPrintGenerator;
 public abstract class MultiThreadedFPSetTest extends AbstractFPSetTest {
 
 	private static final int NUM_THREADS = Integer.getInteger(MultiThreadedFPSetTest.class.getName() + ".numThreads",
-			2);
+			Runtime.getRuntime().availableProcessors());
 	private static final long INSERTIONS = Long.getLong(MultiThreadedFPSetTest.class.getName() + ".insertions",
 			Integer.MAX_VALUE + 2L);
 
@@ -26,7 +26,7 @@ public abstract class MultiThreadedFPSetTest extends AbstractFPSetTest {
 	 * @see junit.framework.TestCase#setUp()
 	 */
 	@Before
-	public void setUp() throws Exception {
+	public void printStats() throws Exception {
 		System.out.println("Insertions: " + df.format(INSERTIONS)
 				+ " (approx: " + df.format(INSERTIONS * FPSet.LongSize >> 20) + " GiB)");
 		System.out.println("Thread count: " + NUM_THREADS);
