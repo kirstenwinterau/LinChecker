@@ -1032,7 +1032,7 @@ public final class OffHeapDiskFPSet extends NonCheckpointableDiskFPSet implement
 			}
 			final long idx = indexer.getIdx(tmp);
 			// Accept wrapped elements.
-			if (pos < reprobe && idx > (array.size() - pos - reprobe)) {
+			if (pos < reprobe && idx > (array.size() - 1L - pos - reprobe)) {
 				continue;
 			}
 			// Accept non-wrapped elements when pos > array.size
