@@ -17,6 +17,8 @@ import tlc2.tool.fp.FPSet;
 import tlc2.tool.fp.FPSetConfiguration;
 import tlc2.tool.fp.FPSetFactory;
 import tlc2.tool.liveness.LiveCheck;
+import tlc2.tool.queue.IStateQueue;
+import tlc2.tool.queue.MemStateQueue;
 import tlc2.util.IStateWriter;
 import tlc2.util.ObjLongTable;
 import tlc2.util.SetOfStates;
@@ -42,6 +44,7 @@ public class ModelChecker extends AbstractChecker
 	public static final boolean VETO_CLEANUP = Boolean.getBoolean(ModelChecker.class.getName() + ".vetoCleanup");
 
 	private long numberOfInitialStates;
+	protected IStateQueue theStateQueue;
     public FPSet theFPSet; // the set of reachable states (SZ: note the type)
     public TLCTrace trace; // the trace file
     // used to calculate the spm metric
@@ -61,7 +64,6 @@ public class ModelChecker extends AbstractChecker
 	private boolean forceLiveCheck = false;
 
 	private final Object errorLock = new Object();
-	private final CyclicBarrier finalization;
 	
     /* Constructors  */
     /**
@@ -77,6 +79,8 @@ public class ModelChecker extends AbstractChecker
         // call the abstract constructor
         super(specFile, configFile, dumpFile, asDot, deadlock, fromChkpt, true, resolver, specObj);
 
+        this.theStateQueue = new MemStateQueue(this.metadir);
+        
         //TODO why used to div by 20?
 		this.theFPSet = FPSetFactory.getFPSet(fpSetConfig);
 
@@ -85,18 +89,12 @@ public class ModelChecker extends AbstractChecker
 
         // Finally, initialize the trace file:
         this.trace = new TLCTrace(this.metadir, specFile, this.tool);
-
-        this.finalization = new CyclicBarrier(TLCGlobals.getNumWorkers(), new Runnable() {
-			public void run() {
-				setDone();
-			}
-		});
         
         // Initialize all the workers:
         this.workers = new Worker[TLCGlobals.getNumWorkers()];
         for (int i = 0; i < this.workers.length; i++)
         {
-            this.workers[i] = new Worker(i, finalization, this);
+            this.workers[i] = new Worker(i, this);
         }
     }
 
@@ -246,7 +244,7 @@ public class ModelChecker extends AbstractChecker
                 this.tool.setCallStack();
                 try
                 {
-                    this.doNext(new ObjLongTable(10), new Worker(this.predErrState, new CyclicBarrier(1), this));
+                    this.doNext(this.predErrState, new ObjLongTable(10), new Worker(4223, this));
                 } catch (Throwable e)
                 {
                     // Assert.printStack(e);
@@ -352,8 +350,13 @@ public class ModelChecker extends AbstractChecker
      * 
      * This method is called from the workers on every step
      */
-    public final boolean doNext(ObjLongTable counts, final Worker worker) throws Throwable
+    public final boolean doNext(ObjLongTable counts, final NoCoherenceWorker worker) throws Throwable
     {
+    	return doNext(worker.getHead(), counts, worker);
+    }
+    
+    public final boolean doNext(TLCState curState, ObjLongTable counts, final Worker worker) throws Throwable
+        {
         // SZ Feb 23, 2009: cancel the calculation
         if (this.cancellationFlag)
         {
@@ -361,7 +364,6 @@ public class ModelChecker extends AbstractChecker
         }
 
         boolean deadLocked = true;
-        TLCState curState = worker.getHead();
         TLCState succState = null;
         SetOfStates liveNextStates = null;
 
@@ -657,19 +659,44 @@ public class ModelChecker extends AbstractChecker
 		// Remember if checkpointing should be run. doCheckPoint() when called
 		// internally diffs the time expired since its last invocation which is
 		// only milliseconds here when called twice.
-		final boolean createCheckPoint = TLCGlobals.doCheckPoint();
-		if ((!this.checkLiveness || runtimeRatio > TLCGlobals.livenessRatio || !liveCheck.doLiveCheck()) && !forceLiveCheck && !createCheckPoint) {
-			updateRuntimeRatio(0L);
-			
-			// Do not suspend the state queue if neither check-pointing nor
-			// liveness-checking is going to happen. Suspending is expensive.
-			// It stops all workers.
-			return true;
-		}
+//		final boolean createCheckPoint = TLCGlobals.doCheckPoint();
+//		if ((!this.checkLiveness || runtimeRatio > TLCGlobals.livenessRatio || !liveCheck.doLiveCheck()) && !forceLiveCheck && !createCheckPoint) {
+//			updateRuntimeRatio(0L);
+//			
+//			// Do not suspend the state queue if neither check-pointing nor
+//			// liveness-checking is going to happen. Suspending is expensive.
+//			// It stops all workers.
+//			return true;
+//		}
 //TODO re-add
-//   	
-//        if (this.theStateQueue.suspendAll())
-//        {
+   	
+        if (this.theStateQueue.size() > MemStateQueue.InitialSize && this.theStateQueue.suspendAll())
+        {
+
+			// Replace the existing workers (those that dequeue states from the
+			// global state queue) with workers who locally store unexplored
+			// states. Afterwards, we terminate the existing workers but don't
+			// stop model checking entirely.
+        	final CyclicBarrier finalization = new CyclicBarrier(TLCGlobals.getNumWorkers(), new Runnable() {
+    			public void run() {
+    				setDone();
+    			}
+    		});
+			final long size = this.theStateQueue.size();
+			for (int i = 0; i < size; i++) {
+				final TLCState state = this.theStateQueue.dequeue();
+				
+				final int idx = i % workers.length;
+				if (!(workers[idx] instanceof NoCoherenceWorker)) {
+					final Worker oldWorker = (Worker) workers[idx];
+					oldWorker.terminate();
+					workers[idx] = new NoCoherenceWorker(oldWorker, finalization, state);
+				} else {
+					((Worker) workers[idx]).enqueue(state);
+				}
+			}
+			assert this.theStateQueue.isEmpty();
+
 //            // Run liveness checking, if needed:
 //			// The ratio set in TLCGlobals defines an upper bound for the
 //			// runtime dedicated to liveness checking.
@@ -711,9 +738,10 @@ public class ModelChecker extends AbstractChecker
 //            	MP.printMessage(EC.TLC_CHECKPOINT_END);
 //            } else {
 //				// Just resume worker threads when checkpointing is skipped
-//            	this.theStateQueue.resumeAll();
+            	this.theStateQueue.resumeAll();
+            	this.startWorkers(null, -1);
 //            }
-//        }
+        }
         return true;
     }
 
@@ -1133,6 +1161,9 @@ public class ModelChecker extends AbstractChecker
     }
     
 	public long getStateQueueSizes() {
+		if (!this.theStateQueue.isEmpty()) {
+			return this.theStateQueue.size(); 
+		}
 		long sum = 0;
 		for (IWorker w : workers) {
 			sum += ((Worker) w).unexplored();
@@ -1189,11 +1220,7 @@ public class ModelChecker extends AbstractChecker
 					if (!seen) {
 						allStateWriter.writeState(curState);
 						curState.uid = trace.writeState(fp);
-						// TODO Hack to distributed initial states among
-						// workers, something better needed for cases where
-						// total numberOfInitialStates < core count.
-						int idx = (int) (numberOfInitialStates % workers.length);
-						((Worker) workers[idx]).enqueueTop(curState);
+						theStateQueue.enqueue(curState);
 
 						// build behavior graph for liveness checking
 						if (checkLiveness) {

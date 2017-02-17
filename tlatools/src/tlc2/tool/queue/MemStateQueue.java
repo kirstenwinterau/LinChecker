@@ -16,7 +16,7 @@ import util.Assert;
 import util.FileUtil;
 
 public final class MemStateQueue extends StateQueue {
-  private final static int InitialSize = 4096;
+	public final static int InitialSize = 4096;
 
   /* Fields  */
   private TLCState[] states;
