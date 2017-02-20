@@ -1,8 +1,12 @@
 package org.lamport.tla.toolbox.tool.tlc.launch;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Properties;
@@ -41,15 +45,19 @@ import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.text.FindReplaceDocumentAdapter;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.swt.widgets.Display;
+import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.PartInitException;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.editors.text.FileDocumentProvider;
 import org.eclipse.ui.part.FileEditorInput;
+import org.lamport.tla.toolbox.spec.Spec;
 import org.lamport.tla.toolbox.tool.IParseResult;
 import org.lamport.tla.toolbox.tool.ToolboxHandle;
 import org.lamport.tla.toolbox.tool.tlc.TLCActivator;
 import org.lamport.tla.toolbox.tool.tlc.job.DistributedTLCJob;
 import org.lamport.tla.toolbox.tool.tlc.job.ITLCJobStatus;
+import org.lamport.tla.toolbox.tool.tlc.job.TLCJob;
 import org.lamport.tla.toolbox.tool.tlc.job.TLCJobFactory;
 import org.lamport.tla.toolbox.tool.tlc.job.TLCProcessJob;
 import org.lamport.tla.toolbox.tool.tlc.model.Model;
@@ -59,6 +67,7 @@ import org.lamport.tla.toolbox.tool.tlc.util.ModelHelper;
 import org.lamport.tla.toolbox.util.AdapterFactory;
 import org.lamport.tla.toolbox.util.ResourceHelper;
 import org.lamport.tla.toolbox.util.TLAMarkerInformationHolder;
+import org.lamport.tla.toolbox.util.UIHelper;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.FrameworkUtil;
 import org.osgi.framework.ServiceReference;
@@ -87,7 +96,7 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
         IModelConfigurationDefaults
 {
     // Mutex rule for the following jobs to run after each other
-    protected MutexRule mutexRule = new MutexRule();
+    protected MutexRule mutexRule = new MutexRule("");
 
     protected String specName = null;
     protected String modelName = null;
@@ -101,6 +110,10 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
      * Mode for starting TLC
      */
     public static final String MODE_MODELCHECK = "modelcheck";
+    /**
+     * Mode for starting TLC and checking all auto-generated modules
+     */
+    public static final String MODE_MODELCHECK_ALL_GENERATED = "modelcheck_allgenerated";
     /**
      * Only generate the models but do not run TLC
      */
@@ -127,15 +140,20 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
     public boolean preLaunchCheck(ILaunchConfiguration config, String mode, IProgressMonitor monitor)
             throws CoreException
     {
-
+        // check and lock the model
+        final Model model = config.getAdapter(Model.class);
+        
+    	    List<String> moduleNames = getModulesToRun(model, mode);
+    	    if(moduleNames.isEmpty()) return false;
+    	    for(String moduleName: moduleNames) {
+    	    makeModuleRootModule(moduleName);
         // check the config existence
         if (!config.exists())
         {
             return false;
         }
-        
-        // check and lock the model
-        final Model model = config.getAdapter(Model.class);
+        //model.clearSpec();
+        //model.getSpec();
         synchronized (config)
         {
             // read out the running attribute
@@ -164,10 +182,20 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
 
             // model name
             modelName = config.getAttribute(MODEL_NAME, EMPTY_STRING);
-
-            // root file name
-            specRootFilename = ToolboxHandle.getRootModule(config.getFile().getProject()).getLocation().toOSString();
-            // specRootFilename = config.getAttribute(SPEC_ROOT_FILE,
+            
+            // current module name
+    			if(moduleName.endsWith(".tla")) {
+    				moduleName = moduleName.substring(0, moduleName.length() - 4);
+    			}
+    			
+    			List<org.lamport.tla.toolbox.spec.Module> specFiles = ToolboxHandle.getCurrentSpec().getModules();
+                for(org.lamport.tla.toolbox.spec.Module module : specFiles) {
+                		if(module.getModuleName().equals(moduleName)) {
+                			specRootFilename = module.getAbsolutePath();
+                		}
+                }
+            
+           // specRootFilename = config.getAttribute(SPEC_ROOT_FILE,
             // EMPTY_STRING);
 
         } finally
@@ -175,8 +203,16 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
             // finish the monitor
             monitor.done();
         }
+    	    }
 
         return true;
+    }
+    
+    private List<String> getModulesToRun(Model model, String mode) {
+        if(MODE_MODELCHECK_ALL_GENERATED.equals(mode)) {
+			return getModulesForModel(model);
+		}
+        return getCurrentModule();
     }
 
     /**
@@ -193,10 +229,16 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
     public boolean buildForLaunch(ILaunchConfiguration config, String mode, IProgressMonitor monitor)
             throws CoreException
     {
-    	final Model model = config.getAdapter(Model.class);
+       	final Model model = config.getAdapter(Model.class);
     	
         // generate the model here
         int STEP = 100;
+        
+        List<String> moduleNames = getModulesToRun(model, mode);
+        if(moduleNames.isEmpty()) return false;
+	    
+	    for(String moduleName: moduleNames) {
+	    makeModuleRootModule(moduleName);
 
         try
         {
@@ -213,6 +255,14 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
                         "Error accessing the spec project " + specName));
             }
 
+
+            List<org.lamport.tla.toolbox.spec.Module> specFiles = ToolboxHandle.getCurrentSpec().getModules();
+            for(org.lamport.tla.toolbox.spec.Module module : specFiles) {
+            		if(module.getModuleName().equals(moduleName)) {
+            			specRootFilename = module.getAbsolutePath();
+            		}
+            }
+            
             // retrieve the root file
             IFile specRootFile = ResourceHelper.getLinkedFile(project, specRootFilename, false);
             if (specRootFile == null)
@@ -225,19 +275,26 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
             // retrieve the model folder
             IFolder modelFolder = project.getFolder(modelName);
             IPath targetFolderPath = modelFolder.getProjectRelativePath().addTrailingSeparator();
-
+            String filePrefix = (moduleNames.size() == 1 && !moduleName.equals("Init")) ? "" : ("_" + moduleName);
+            IFolder subFolder = modelFolder.getFolder(filePrefix);
+            
             // create the handles: MC.tla, MC.cfg and MC.out
-            IFile tlaFile = project.getFile(targetFolderPath.append(ModelHelper.FILE_TLA));
-            IFile cfgFile = project.getFile(targetFolderPath.append(ModelHelper.FILE_CFG));
-            IFile outFile = project.getFile(targetFolderPath.append(ModelHelper.FILE_OUT));
+            IFile tlaFile = project.getFile(targetFolderPath.append(filePrefix).append(ModelHelper.FILE_TLA));
+            IFile cfgFile = project.getFile(targetFolderPath.append(filePrefix).append(ModelHelper.FILE_CFG));
+            IFile outFile = project.getFile(targetFolderPath.append(filePrefix).append(ModelHelper.FILE_OUT));
 
             TLCActivator.logDebug("Writing files to: " + targetFolderPath.toOSString());
 
             final IFile[] files = new IFile[] { tlaFile, cfgFile, outFile };
 
-            if (modelFolder.exists())
+
+            if(!modelFolder.exists()) {
+            		modelFolder.create(IResource.DERIVED | IResource.FORCE, true, new SubProgressMonitor(monitor, STEP));
+            	}
+            
+            if (subFolder.exists())
             {
-                final IResource[] members = modelFolder.members();
+                final IResource[] members = subFolder.members();
                 // erase everything inside
                 if (members.length == 0)
                 {
@@ -299,24 +356,23 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
                 }
             } else
             {
-                // create it
-                modelFolder.create(IResource.DERIVED | IResource.FORCE, true, new SubProgressMonitor(monitor, STEP));
+                subFolder.create(IResource.DERIVED | IResource.FORCE, true, new SubProgressMonitor(monitor, STEP));
             }
-
+            	
             // step 2
             monitor.subTask("Copying files");
-
+            
             // copy
-            specRootFile.copy(targetFolderPath.append(specRootFile.getProjectRelativePath()), IResource.DERIVED
+            specRootFile.copy(targetFolderPath.append(filePrefix).append(specRootFile.getProjectRelativePath()), IResource.DERIVED
                     | IResource.FORCE, new SubProgressMonitor(monitor, 1));
             // find the result
-            IResource specRootFileCopy = modelFolder.findMember(specRootFile.getProjectRelativePath());
+            IResource specRootFileCopy = subFolder.findMember(specRootFile.getProjectRelativePath());
 
             // react if no result
             if (specRootFileCopy == null)
             {
                 throw new CoreException(new Status(IStatus.ERROR, TLCActivator.PLUGIN_ID, "Error copying "
-                        + specRootFilename + " into " + targetFolderPath.toOSString()));
+                        + specRootFilename + " into " + targetFolderPath.append(filePrefix).toOSString()));
             }
 
             // get the list of dependent modules
@@ -335,7 +391,7 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
                     if (moduleFile != null)
                     {
                     	try {
-                        moduleFile.copy(targetFolderPath.append(moduleFile.getProjectRelativePath()), IResource.DERIVED
+                        moduleFile.copy(targetFolderPath.append(filePrefix).append(moduleFile.getProjectRelativePath()), IResource.DERIVED
                                 | IResource.FORCE, new SubProgressMonitor(monitor, STEP / extendedModules.size()));
                     	} catch (ResourceException re) {
                     		// Trying to copy the file to the targetFolderPath produces an exception.
@@ -350,16 +406,16 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
 							TLCActivator.logError(
 									String.format(
 											"Error copying file %s to %s. Please correct the path to %s. \n(The first place to check is in the %s/.project file. Restart the Toolbox when you change the .project file.)",
-											moduleFile.getLocation(), targetFolderPath, moduleFile.getName(),
+											moduleFile.getLocation(), targetFolderPath.append(filePrefix), moduleFile.getName(),
 											modelFolder.getRawLocation().removeLastSegments(1)), re);
-							throw new CoreException(
+							/*throw new CoreException(
 									new Status(
 											Status.ERROR,
 											"org.lamport.tlc.toolbox.tool.tlc",
 											String.format(
 													"Error copying file %s to %s. Please correct the path to %s. \n(The first place to check is in the %s/.project file. Restart the Toolbox when you change the .project file.)",
 													moduleFile.getLocation(), targetFolderPath, moduleFile.getName(),
-													modelFolder.getRawLocation().removeLastSegments(1))));
+													modelFolder.getRawLocation().removeLastSegments(1))));*/
                     	}
                     }
                     // TODO check the existence of copied files
@@ -534,9 +590,45 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
             // make sure to complete the monitor
             monitor.done();
         }
+	    }
 
         // we don't want to rebuild the workspace
         return false;
+    }
+    
+    /**
+     * Makes the module with the given name the root module. Requires that this module
+     * exists.
+     */
+    private void makeModuleRootModule(String moduleName) {
+		if(moduleName.endsWith(".tla")) {
+			moduleName = moduleName.substring(0, moduleName.length() - 4);
+		}
+	    ToolboxHandle.getCurrentSpec().getRootModule().setPrimaryFileName(moduleName);
+	    ToolboxHandle.getCurrentSpec().getRootModule().setName(moduleName);
+    }
+    
+    /**
+     * Check if the user is currently editing a TLA+ module, and if so sets it to be
+     * the root module of the specification. This means that the model checker will now
+     * run against this particular module. Used to run model checker against a single module.
+     * @return
+     */
+    private boolean makeCurrentModuleRootModule() {
+    		if(!ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) {
+    			return true;
+    		}
+    		// Check that the current editor is a TLA+ module editor, before we set it as the root module
+    		IEditorPart editor = UIHelper.getActiveEditor();
+    		if(!(editor.getClass().getName().contains("TLAEditorAndPDFViewer"))) {
+			return false;
+		}
+		
+		// Make the module currently being edited the root module so that the model checker runs against this
+    		IEditorInput input = UIHelper.getActiveEditor().getEditorInput();
+    		String moduleName = input.getName();
+    		makeModuleRootModule(moduleName);
+		return true;
     }
 
     /**
@@ -550,12 +642,21 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
             throws CoreException
     {
         monitor.beginTask("Verifying model files", 4);
-
+        
         final Model model = configuration.getAdapter(Model.class);
+        
+        List<String> moduleNames = getModulesToRun(model, mode);
+	    if(moduleNames.isEmpty()) return false;
+	    
+	    for(String moduleName: moduleNames) {
+	    makeModuleRootModule(moduleName);
+        //model.clearSpec();
+        //model.getSpec();
         
         IProject project = ResourceHelper.getProject(specName);
         IFolder launchDir = project.getFolder(modelName);
-        IFile rootModule = launchDir.getFile(ModelHelper.FILE_TLA);
+        String filePrefix = (moduleNames.size() == 1 && !moduleName.equals("Init")) ? "" : ("_" + moduleName);
+        IFile rootModule = launchDir.getFolder(filePrefix).getFile(ModelHelper.FILE_TLA);
 
         monitor.worked(1);
         // parse the MC file
@@ -649,8 +750,12 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
         } else
         {
             TLCActivator.logDebug("Final check for the " + mode + " mode. The result of the check is " + status);
-            return status;
+            if(status == false) {
+            		return status;
+            }
         }
+	    }
+		return true;
     }
 
     /**
@@ -660,13 +765,19 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
     public void launch(ILaunchConfiguration config, String mode, ILaunch launch, IProgressMonitor monitor)
             throws CoreException
     {
-
-        // check the modes
-        if (!MODE_MODELCHECK.equals(mode))
+    		// check the modes
+        if (!MODE_MODELCHECK.equals(mode) && !MODE_MODELCHECK_ALL_GENERATED.equals(mode))
         {
             throw new CoreException(
                     new Status(IStatus.ERROR, TLCActivator.PLUGIN_ID, "Unsupported launch mode " + mode));
         }
+        Model tlcModel = config.getAdapter(Model.class);
+        
+        List<String> moduleNames = getModulesToRun(tlcModel, mode);
+	    if(moduleNames.isEmpty()) return;
+	    
+	    for(String moduleName: moduleNames) {
+	    makeModuleRootModule(moduleName);
 
         // retrieve the project containing the specification
         IProject project = ResourceHelper.getProject(specName);
@@ -680,7 +791,8 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
         // setup the running flag
         // from this point any termination of the run must reset the
         // flag
-        config.getAdapter(Model.class).setRunning(true);
+        Model model = config.getAdapter(Model.class);
+        model.setRunning(true);
 
         // set the model to have the original trace shown
         config.getAdapter(Model.class).setOriginalTraceShown(true);
@@ -708,9 +820,11 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
         // TLC job
         Job job = null;
         if("off".equalsIgnoreCase(cloud)) {
-        	job = new TLCProcessJob(specName, modelName, launch, numberOfWorkers);
+        	String filePrefix = (moduleNames.size() == 1 && !moduleName.equals("Init")) ? "" : ("_" + moduleName);
+        	job = new TLCProcessJob(specName, modelName, launch, numberOfWorkers, filePrefix);
             // The TLC job itself does not do any file IO
             job.setRule(mutexRule);
+            job.setName(modelName + " run for " + moduleName);
         } else {
         	if ("ad hoc".equalsIgnoreCase(cloud)) {
         		job = new DistributedTLCJob(specName, modelName, launch, numberOfWorkers);
@@ -738,7 +852,6 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
 					props.put(TLCJobFactory.MAIN_CLASS, tlc2.TLC.class.getName());
 					// Add model and spec name to properties to make the model
 					// checker run easily identifiable in the result email.
-			        final Model model = config.getAdapter(Model.class);
 					props.put(TLCJobFactory.MODEL_NAME, model.getName());
 					props.put(TLCJobFactory.SPEC_NAME, model.getSpec().getName());
 					if (numberOfWorkers > 1) {
@@ -754,7 +867,7 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
 			        final int fpSeedOffset = launch.getLaunchConfiguration().getAttribute(LAUNCH_FP_INDEX, LAUNCH_FP_INDEX_DEFAULT);
 			        tlcParams.append("-fp ");
 			        tlcParams.append(String.valueOf(fpSeedOffset - 1));
-		        	tlcParams.append(" ");
+		        	    tlcParams.append(" ");
 			        
 			        // add maxSetSize argument if not equal to the default
 			        // code added by LL on 9 Mar 2012
@@ -803,10 +916,12 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
         job.setPriority(Job.LONG);
         job.setUser(true);
 
+        String filePrefix = (moduleNames.size() == 1 && !moduleName.equals("Init")) ? "" : ("_" + moduleName);
         // setup the job change listener
-        TLCJobChangeListener tlcJobListener = new TLCJobChangeListener(config.getAdapter(Model.class));
+        TLCJobChangeListener tlcJobListener = new TLCJobChangeListener(config.getAdapter(Model.class), filePrefix);
         job.addJobChangeListener(tlcJobListener);
         job.schedule();
+	    }
     }
     
 	// A DummyProcess instance has to be attached to the corresponding ILaunch
@@ -879,7 +994,6 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
 
 		public void done(IJobChangeEvent event) {
 			super.done(event);
-	
 			
 			// TLC models seem to require some clean-up
 			model.setLocked(false);
@@ -922,14 +1036,17 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
     class TLCJobChangeListener extends SimpleJobChangeListener
     {
         private Model model;
+        private String filePrefix;
 
         /**
          * Constructs the change listener
          * @param model the config to modify after the job completion
          */
-        public TLCJobChangeListener(Model model)
+        public TLCJobChangeListener(Model model, String filePrefix)
         {
             this.model = model;
+            this.filePrefix = filePrefix;
+            model.setFilePrefix(filePrefix);
         }
 
         public void done(IJobChangeEvent event)
@@ -965,6 +1082,28 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
              */
             IProject project = ResourceHelper.getProject(specName);
             IFolder modelFolder = project.getFolder(modelName);
+			// Determines if we are in run-all mode
+            if(filePrefix != null && !filePrefix.isEmpty()) {
+            	    boolean mcError = false;
+	            modelFolder = project.getFolder(modelName).getFolder(filePrefix);
+	            mcError = checkForError(modelFolder);
+				if(mcError) {
+					final String name = event.getJob().getName();
+					Display.getDefault().asyncExec(new Runnable() {
+						public void run() {
+							MessageDialog
+							.openError(
+									Display.getDefault().getActiveShell(),
+									name + " had errors", "There were errors running '" + name + "'. See the error explorer for more information. The remainder of the batch run has been cancelled.");
+						}
+					});
+					// Cancel other jobs in case we are in run all mode
+					Job[] allJobs = Job.getJobManager().find(TLCJob.AllJobsMatcher);
+					for(Job job: allJobs) {
+						job.cancel();
+					}
+				}
+			}
             WorkspaceJob refreshJob = new WorkspaceJob("") {
 
                 public IStatus runInWorkspace(IProgressMonitor monitor) throws CoreException
@@ -1040,14 +1179,128 @@ public class TLCModelLaunchDelegate extends LaunchConfigurationDelegate implemen
      */
     class MutexRule implements ISchedulingRule
     {
+    	    String name = "";
+    	    public MutexRule(String name) {
+    	    	    this.name = name;
+    	    }
         public boolean isConflicting(ISchedulingRule rule)
         {
-            return rule == this;
+        	    return this == rule;
+            //return !this.name.equals("") && (rule instanceof MutexRule && (((MutexRule) rule).name.equals(this.name)));
         }
 
         public boolean contains(ISchedulingRule rule)
         {
-            return rule == this;
+        	    return this == rule;
+            	//return !this.name.equals("") && (rule instanceof MutexRule && (((MutexRule) rule).name.equals(this.name)));
         }
+    }
+    
+    private static List<String> getModulesForModel(Model model) {
+	    	Spec spec = ToolboxHandle.getCurrentSpec();
+	    List<String> moduleNames = readModuleList(spec);
+	    List<String> relevantModuleNames = new ArrayList<String>();
+	    for(String moduleName : moduleNames) {
+		    String[] nameParts = moduleName.split("/");
+		    moduleName = nameParts[nameParts.length - 1];
+		    if(model.getName().endsWith("Init") && moduleName.endsWith("Init")) {
+			    ;
+		    } else if (model.getName().endsWith("Interference") && moduleName.endsWith("D")) {
+		        	;
+		    } else if(model.getName().endsWith("Simulation") && !moduleName.endsWith("D") && !moduleName.equals("Init")) {
+		        ;
+		    } else {
+			    continue;
+		    }
+		    relevantModuleNames.add(moduleName);
+	    }
+	    return relevantModuleNames;
+    }
+
+    //TODO: Don't duplicate this (changed it to give just file name not path)
+	private static List<String> readModuleList(Spec spec) {
+		IFile file = spec.getRootFile();
+		IPath tlaPath = file.getLocation();
+		IPath moduleListPath = tlaPath.removeLastSegments(1);
+		moduleListPath = moduleListPath.append("moduleGenInfo.txt");
+		File moduleListInfo = moduleListPath.toFile();
+		
+		List<String> modules = new ArrayList<String>();
+		BufferedReader moduleListReader = null;
+		try {
+			moduleListReader = new BufferedReader(new FileReader(moduleListInfo));
+			String line = moduleListReader.readLine();
+			while (line != null) {
+				modules.add(line);
+				line = moduleListReader.readLine();
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if (moduleListReader != null) {
+				try {
+					moduleListReader.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+		return modules;
+	}
+
+    private static void makeModuleRootModule(Spec spec, String moduleName) {
+        if(moduleName.endsWith(".tla")) {
+	        moduleName = moduleName.substring(0, moduleName.length() - 4);
+        }
+        ToolboxHandle.getCurrentSpec().getRootModule().setPrimaryFileName(moduleName);
+        ToolboxHandle.getCurrentSpec().getRootModule().setName(moduleName);
+    }
+    
+    private List<String> getCurrentModule()  {
+    	    List<String> modules = new ArrayList<String>();
+	    	if(!ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) {
+				return modules;
+			}
+			// Check that the current editor is a TLA+ module editor, before we set it as the root module
+			IEditorPart editor = UIHelper.getActiveEditor();
+			if(!(editor.getClass().getName().contains("TLAEditorAndPDFViewer"))) {
+			return modules;
+		}
+		
+		// Make the module currently being edited the root module so that the model checker runs against this
+		IEditorInput input = UIHelper.getActiveEditor().getEditorInput();
+		String moduleName = input.getName();
+	    	modules.add(moduleName);
+        return modules;
+    }
+    
+    private boolean checkForError(IFolder modelFolder) {
+        	boolean mcError = false;
+    	    IFile output = modelFolder.getFile("MC.out");
+        File outFile = output.getLocation().toFile();
+        BufferedReader br = null;
+        try {
+			br = new BufferedReader(new FileReader(outFile));
+			String line = null;
+			mcError = true;
+			boolean first = true;
+			while((line = br.readLine()) != null) {
+				if((first && line.trim().isEmpty()) || line.contains("No error")) {
+			        mcError = false;
+				}
+				first = false;
+			}
+			if(first) mcError = false;
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
+			if(br != null)
+				try {
+					br.close();
+				} catch (IOException e) {
+					e.printStackTrace();
+				}
+		}
+        return mcError;
     }
 }

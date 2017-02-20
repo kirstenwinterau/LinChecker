@@ -176,6 +176,19 @@ public class Model implements IModelConfigurationConstants, IAdaptable {
 		}
 		return this.spec;
 	}
+	private String filePrefix = "";
+	
+	public void setFilePrefix(String filePrefix) {
+		this.filePrefix = filePrefix;
+	}
+	
+	public String getFilePrefix() {
+		return filePrefix;
+	}
+	
+	public void clearSpec() {
+		this.spec = null;
+	}
 
 	public Model copy(String newModelName) {
 		newModelName = sanitizeName(newModelName);
@@ -527,7 +540,11 @@ public class Model implements IModelConfigurationConstants, IAdaptable {
      * @return the Folder.
      */
 	public IFolder getTargetDirectory() {
-        return (IFolder) getSpec().getProject().findMember(getName());
+        IFolder folder = (IFolder) getSpec().getProject().findMember(getName());
+        if(filePrefix != null && !filePrefix.isEmpty()) {
+        		folder = folder.getFolder(filePrefix);
+        }
+        return folder;
 	}
 
 	/**
@@ -572,6 +589,9 @@ public class Model implements IModelConfigurationConstants, IAdaptable {
 	
 	private IFile getFile(final String id) {
 		final IFolder targetFolder = getTargetDirectory();
+		/*if(filePrefix != null && !filePrefix.isEmpty()) {
+		    targetFolder = targetFolder.getFolder(filePrefix);
+		}*/
 		if (targetFolder != null && targetFolder.exists()) {
 			final IFile teFile = (IFile) targetFolder.findMember(id);
 			if (teFile != null && teFile.exists()) {
@@ -593,6 +613,13 @@ public class Model implements IModelConfigurationConstants, IAdaptable {
      */
 	public IFile getTraceSourceFile() {
 		final IFolder targetFolder = getTargetDirectory();
+		/*if(!filePrefix.isEmpty()) {
+			targetFolder = (IFolder) targetFolder.getParent();
+		}*/
+		/*if(filePrefix != null && !filePrefix.isEmpty()) {
+			targetFolder = targetFolder.getFolder(filePrefix);
+		}*/
+	
 		if (targetFolder != null && targetFolder.exists()) {
 			final IFile logFile = targetFolder.getFile(ModelHelper.TE_TRACE_SOURCE);
 			Assert.isNotNull(logFile);

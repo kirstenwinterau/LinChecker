@@ -43,6 +43,7 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import org.lamport.tla.toolbox.Activator;
 import org.lamport.tla.toolbox.spec.Spec;
 import org.lamport.tla.toolbox.spec.parser.IParseConstants;
+import org.lamport.tla.toolbox.tool.tlc.handlers.GenerateModulesHandler;
 import org.lamport.tla.toolbox.tool.tlc.launch.IModelConfigurationDefaults;
 import org.lamport.tla.toolbox.tool.tlc.launch.TLCModelLaunchDelegate;
 import org.lamport.tla.toolbox.tool.tlc.model.Model;
@@ -557,7 +558,15 @@ public class ModelEditor extends FormEditor
     /* --------------------------------------------------------------------- */
     
 	public void launchModel(final String mode, final boolean userPased) {
-		launchModel(mode, userPased, new NullProgressMonitor());
+		launchModel(mode, userPased, new NullProgressMonitor(), false);
+	}
+	
+	public void launchModel(final String mode, final boolean userPased, boolean runAll) {
+		launchModel(mode, userPased, new NullProgressMonitor(), runAll);
+	}
+	
+	public void launchModel(final String mode, final boolean userPased, final IProgressMonitor monitor) {
+		launchModel(mode, userPased, monitor, false);
 	}
 	
 	/**
@@ -569,7 +578,7 @@ public class ModelEditor extends FormEditor
 	 *            (explicit click on the launch button)
 	 * @throws CoreException
 	 */
-	public void launchModel(final String mode, final boolean userPased, final IProgressMonitor monitor) {
+	public void launchModel(final String mode, final boolean userPased, final IProgressMonitor monitor, final boolean runAll) {
 		final IWorkspace workspace = ResourcesPlugin.getWorkspace();
 		try {
 			workspace.run(new IWorkspaceRunnable() {
@@ -631,6 +640,11 @@ public class ModelEditor extends FormEditor
 												+ ModelHelper.TE_MODEL_NAME + "."
 												+ (userPased ? "" : " However, the model can still be saved."));
 								return;
+							}
+							if(spec.usesLinearisabilityModuleGenerator()) {
+								if(!GenerateModulesHandler.suggestRegenerateIfOutOfSync(spec, getSite().getShell())) {
+									return;
+								}
 							}
 						}
 					} else {
@@ -704,7 +718,12 @@ public class ModelEditor extends FormEditor
 									.getInt(ITLCPreferenceConstants.I_TLC_AUTO_LOCK_MODEL_TIME);
 							model.setAutoLockTime(autoLockTime);
 						}
-						model.launch(mode, new SubProgressMonitor(monitor, 1), true);
+						if(runAll) {
+							model.launch(TLCModelLaunchDelegate.MODE_MODELCHECK_ALL_GENERATED, new SubProgressMonitor(monitor, 1), true);
+						} else {
+						    model.launch(mode, new SubProgressMonitor(monitor, 1), true);
+						}
+					    
 
 						/*
 						 * Close any tabs in this editor containing read-only

@@ -34,6 +34,7 @@ public class NewSpecWizardPage extends WizardPage
     private Text specNameText;
     private Text fileText;
     private Button importExisting;
+    private Button useModuleGeneratingTool;
 
     // the flags show if the fields has been touched
     private boolean specNameDirty = false;
@@ -120,11 +121,28 @@ public class NewSpecWizardPage extends WizardPage
         importExisting.setText("Import existing models");
         importExisting.setSelection(true);
         importExisting.setEnabled(false);
-
+        
+        useModuleGeneratingTool = new Button(container, SWT.CHECK);
+        useModuleGeneratingTool.setText("Use module-generating tool for verifying linearizability");
+        useModuleGeneratingTool.setSelection(true);
+        useModuleGeneratingTool.setEnabled(true);
+        
         gd = new GridData();
         gd.horizontalSpan = 2;
         importExisting.setLayoutData(gd);
         importExisting.addSelectionListener(new SelectionListener() {
+            public void widgetDefaultSelected(SelectionEvent e)
+            {
+            }
+
+            public void widgetSelected(SelectionEvent e)
+            {
+                dialogChanged();
+            }
+        });
+        
+        useModuleGeneratingTool.setLayoutData(gd);
+        useModuleGeneratingTool.addSelectionListener(new SelectionListener() {
             public void widgetDefaultSelected(SelectionEvent e)
             {
             }
@@ -419,6 +437,15 @@ public class NewSpecWizardPage extends WizardPage
     public boolean importExisting()
     {
         return importExisting.getSelection();
+    }
+    
+    /**
+     * Returns true if the module generating tool to assist in checking an algorithm's
+     * linearizability should be used
+     * @return
+     */
+    public boolean useModuleGeneratingTool() {
+    		return useModuleGeneratingTool.getSelection();
     }
 
 }

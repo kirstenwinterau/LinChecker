@@ -158,6 +158,18 @@
             id="org.lamport.tla.toolbox.openElementSelection"
             name="Filtered open element selection dialog">
       </command>
+      <command
+            categoryId="toolbox.tool.tlc.commands.category"
+            description="Generates the TLA+ modules for an algorithm"
+            id="toolbox.tool.tlc.commands.model.generateModules"
+            name="Generate modules for algorithm">
+      </command>
+      <command
+            categoryId="toolbox.tool.tlc.commands.category"
+            description="Runs the model checker on all auto-generated modules"
+            id="toolbox.tool.tlc.commands.model.runAllGenerated"
+            name="Run model checking on all auto-generated modules">
+      </command>
    </extension>
    
    
@@ -268,9 +280,6 @@
       
       <menuContribution
             locationURI="menu:toolbox.toolmenus.tlc?after=org.lamport.tla.toolbox.tool.tlc.separator">
-
-
-         <!-- Run model menu bar command in TLC Model Checker menu -->
          <command
                commandId="toolbox.tool.tlc.commands.model.run"
                icon="icons/full/lrun_obj.gif"
@@ -284,14 +293,71 @@
                      checkEnabled="true">
                   <with
                         variable="activeWorkbenchWindow.activePerspective">
+                     <and>
+                        <not>
+                           <equals
+                                 value="org.lamport.tla.toolbox.ui.perspective.initial">
+                           </equals>
+                        </not>
+                     </and>
+                  </with>
+               </visibleWhen>
+         </command>
+         <separator
+               name="org.lamport.tla.toolbox.tool.tlc.ui.separator2"
+               visible="true">
+         </separator>
+         <command
+               commandId="toolbox.tool.tlc.commands.model.generateModules"
+               icon="icons/full/loop_obj.gif"
+               id="toolbox.menu.generatemodules"
+               label="Generate modules for algorithm"
+               mnemonic="G"
+               mode="FORCE_TEXT"
+               style="push"
+               tooltip="Generate the TLA+ for each line of your PL/0 algorithm">
+            <visibleWhen
+                  checkEnabled="true">
+               <and>
+                  <with
+                        variable="activeWorkbenchWindow.activePerspective">
+                     <and>
+                        <not>
+                           <equals
+                                 value="org.lamport.tla.toolbox.ui.perspective.initial">
+                           </equals>
+                        </not>
+                     </and>
+                  </with>
+               </and>
+            </visibleWhen>
+         </command>
+         <command
+               commandId="toolbox.tool.tlc.commands.model.runAllGenerated"
+               icon="icons/full/lrun_obj.gif"
+               id="toolbox.menu.runmodelall"
+               label="Run all"
+               mnemonic="A"
+               mode="FORCE_TEXT"
+               style="push"
+               tooltip="Runs the TLC model for all auto-generated modules">
+            <visibleWhen
+                  checkEnabled="true">
+               <with
+                     variable="activeWorkbenchWindow.activePerspective">
+                  <and>
                      <not>
                         <equals
                               value="org.lamport.tla.toolbox.ui.perspective.initial">
                         </equals>
                      </not>
-                  </with>
-               </visibleWhen>
+                  </and>
+               </with>
+            </visibleWhen>
          </command>
+
+
+         <!-- Run model menu bar command in TLC Model Checker menu -->
          <separator
                name="org.lamport.tla.toolbox.tool.tlc.ui.separator1"
                visible="true">
@@ -761,6 +827,14 @@ Console Facory
       <handler
             class="org.lamport.tla.toolbox.tool.tlc.handlers.TLAOpenElementSelectionDialogHandler"
             commandId="org.lamport.tla.toolbox.openElementSelection">
+      </handler>
+      <handler
+            class="org.lamport.tla.toolbox.tool.tlc.handlers.GenerateModulesHandler"
+            commandId="toolbox.tool.tlc.commands.model.generateModules">
+      </handler>
+      <handler
+            class="org.lamport.tla.toolbox.tool.tlc.handlers.RunAllHandler"
+            commandId="toolbox.tool.tlc.commands.model.runAllGenerated">
       </handler>
    </extension>
    <extension

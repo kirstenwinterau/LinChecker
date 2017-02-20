@@ -1,5 +1,6 @@
 package org.lamport.tla.toolbox.ui.handler;
 
+import java.util.Arrays;
 import java.util.HashMap;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -17,6 +18,7 @@ import org.eclipse.core.runtime.IStatus;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Status;
 import org.eclipse.core.runtime.jobs.Job;
+import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardDialog;
 import org.eclipse.swt.widgets.Shell;
@@ -25,6 +27,7 @@ import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.progress.UIJob;
 import org.lamport.tla.toolbox.Activator;
 import org.lamport.tla.toolbox.spec.Spec;
+import org.lamport.tla.toolbox.tool.tlc.handlers.NewModelHandler;
 import org.lamport.tla.toolbox.ui.navigator.ToolboxExplorer;
 import org.lamport.tla.toolbox.ui.wizard.NewSpecWizard;
 import org.lamport.tla.toolbox.util.ResourceHelper;
@@ -62,6 +65,9 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
         {
         	// read UI values from the wizard page
         	final boolean importExisting = wizard.isImportExisting();
+        	final boolean useModuleGeneratingTool = wizard.useModuleGeneratingTool();
+        IPreferenceStore store = Activator.getDefault().getPreferenceStore();
+        store.setValue("UseModuleGeneratingTool", useModuleGeneratingTool);
         	final String specName = wizard.getSpecName();
         	final String rootFilename = wizard.getRootFilename();
             
@@ -69,7 +75,7 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
             // not correspond with the availability of the spec object
             // it first has to be created/parsed fully before it can be shown in
             // the editor. Thus, delay opening the editor until parsing is done.        	
-            createModuleAndSpecInNonUIThread(rootFilename, importExisting, specName);
+            createModuleAndSpecInNonUIThread(rootFilename, importExisting, useModuleGeneratingTool, specName);
         }
 
         return null;
@@ -78,14 +84,14 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
 	/**
      * This triggers a build which might even be blocked due to the job
      * scheduling rule, hence decouple and let the UI thread continue.
-	 * @param lock 
 	 */
 	private void createModuleAndSpecInNonUIThread(final String rootFilename,
-			final boolean importExisting, final String specName) {
+			final boolean importExisting, final boolean useModuleGeneratingTool, 
+			final String specName) {
 		Assert.isNotNull(rootFilename);
 		Assert.isNotNull(specName);
 		
-		final Job job = new NewSpecHandlerJob(specName, rootFilename, importExisting);
+		final Job job = new NewSpecHandlerJob(specName, rootFilename, importExisting, useModuleGeneratingTool);
 		job.schedule();
 	}
 	
@@ -94,12 +100,19 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
 		private final String specName;
 		private final String rootFilename;
 		private final boolean importExisting;
+		private boolean useModuleGeneratingTool = false;
 
 		public NewSpecHandlerJob(String specName, String rootFilename, boolean importExisting) {
 			super("NewSpecWizard job");
 			this.specName = specName;
 			this.rootFilename = rootFilename;
 			this.importExisting = importExisting;
+		}
+		
+		public NewSpecHandlerJob(String specName, String rootFilename, boolean importExisting,
+					boolean useModuleGeneratingTool) {
+			this(specName, rootFilename, importExisting);
+			this.useModuleGeneratingTool = useModuleGeneratingTool;
 		}
 
 		@Override
@@ -135,14 +148,20 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
 			try {
 				if (!rootNamePath.toFile().exists()) {
 					IWorkspaceRunnable createTLAModuleCreationOperation = ResourceHelper
-							.createTLAModuleCreationOperation(rootNamePath);
+							.createTLAModuleCreationOperation(rootNamePath, useModuleGeneratingTool);
 					ResourcesPlugin.getWorkspace().run(createTLAModuleCreationOperation, monitor);
 				}
 				
 				// create and add spec to the spec manager
-				final Spec spec = Spec.createNewSpec(specName, rootFilename, importExisting, monitor);
+				final Spec spec = Spec.createNewSpec(specName, rootFilename, importExisting, useModuleGeneratingTool, monitor);
 				Activator.getSpecManager().addSpec(spec);
-
+				
+				if(useModuleGeneratingTool) {
+					NewModelHandler.CreateModel(spec, "Init", Arrays.asList("ABS", "INV", "INVq", "D"));
+					NewModelHandler.CreateModel(spec, "Simulation", Arrays.asList("ABS", "INV", "STATUS"));
+					NewModelHandler.CreateModel(spec, "Interference", Arrays.asList("INVq", "D", "STATUSq"));
+				}
+				
 				// open editor since the spec has been created now
 				openEditorInUIThread(spec);
 			} catch (final CoreException e) {

@@ -68,5 +68,6 @@ Import-Package: org.eclipse.e4.core.contexts,
  org.eclipse.e4.ui.model.application,
  org.eclipse.e4.ui.model.application.ui,
  org.eclipse.e4.ui.model.application.ui.basic,
- org.eclipse.e4.ui.workbench.modeling
+ org.eclipse.e4.ui.workbench.modeling,
+ org.lamport.tla.toolbox.tool.tlc.handlers
 

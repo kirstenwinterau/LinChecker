@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 
 import org.eclipse.core.resources.IFile;
+import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
@@ -23,6 +24,7 @@ import org.eclipse.ui.IEditorSite;
 import org.eclipse.ui.INavigationLocation;
 import org.eclipse.ui.INavigationLocationProvider;
 import org.eclipse.ui.PartInitException;
+import org.eclipse.ui.editors.text.TextEditor;
 import org.eclipse.ui.forms.editor.FormEditor;
 import org.eclipse.ui.part.FileEditorInput;
 import org.eclipse.ui.texteditor.IDocumentProvider;
@@ -51,13 +53,16 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
     public static final String PDFPage_ID = "pdfPage";
     // index at which the tla module editor tab appears
     private static final int tlaEditorIndex = 0;
+    private static final int programEditorIndex = 1;
 
     private Image rootImage = TLAEditorActivator.imageDescriptorFromPlugin(TLAEditorActivator.PLUGIN_ID,
             "/icons/root_file.gif").createImage();
 
     PDFViewingPage pdfViewingPage;
     IEditorInput tlaEditorInput;
+    IEditorInput programEditorInput;
     TLAEditor tlaEditor;
+    TextEditor programEditor;
 
     /* (non-Javadoc)
      * @see org.eclipse.ui.forms.editor.FormEditor#addPages()
@@ -75,9 +80,14 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
             }
 
             tlaEditor = new TLAEditor();
+            programEditor = new TextEditor();
 
             addPage(tlaEditorIndex, tlaEditor, tlaEditorInput);
             setPageText(tlaEditorIndex, "TLA Module");
+            if(ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) {
+            		addPage(programEditorIndex, programEditor, programEditorInput);
+            		setPageText(programEditorIndex, "PL/0 Algorithm");
+            }
 
             setDescription();
 
@@ -94,6 +104,7 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
     {
 
         tlaEditorInput = input;
+		programEditorInput = null;
         if (input instanceof FileEditorInput)
         {
             FileEditorInput finput = (FileEditorInput) input;
@@ -101,6 +112,37 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
             {
                 if (ResourceHelper.isModule(finput.getFile()))
                 {
+
+            			if(ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) {
+                		IPath path = (IPath) finput.getPath().clone();
+                		
+                		// Remove the last segment from the path, then add the
+                		// name of the root module with a pl/0 extension. This way
+                		// the same PL/0 file is used for each module in the spec, as
+                		// they should all corerspond to the same algorithm
+                		path = path.removeLastSegments(1);
+                		path = path.append(ToolboxHandle.getRootModule().getName());
+                		path = path.removeFileExtension();
+                		path = path.addFileExtension("pl0");
+                		
+                		File programFile = new File(path.toString());
+                		IFile file = finput.getFile().getProject().getFile(path.lastSegment());
+                		
+                		try {
+                				if(!programFile.exists()) {
+	                    			programFile.createNewFile();
+								file.createLink(path, IResource.NONE, null);
+                				}
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} catch (CoreException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						} 
+                		programEditorInput = new FileEditorInput(file);
+            			}
+                		
                     this.setPartName(finput.getFile().getName());
                 }
 
@@ -109,7 +151,7 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
                     setTitleImage(rootImage);
                 }
             }
-        }
+        } 
         super.init(site, input);
     }
 
@@ -119,6 +161,20 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
     public void doSave(IProgressMonitor monitor)
     {
         tlaEditor.doSave(monitor);
+        if(programEditor != null) {
+        		programEditor.doSave(monitor);
+        }
+        if(!ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) return;
+        // Create marker so user knows they have changed the file
+        /*try {
+            FileEditorInput input = (FileEditorInput) tlaEditor.getEditorInput();
+			IMarker changeMarker = input.getFile().createMarker(IMarker.PROBLEM);
+			changeMarker.setAttribute(IMarker.MESSAGE, "Changed since last generation");
+	        changeMarker.setAttribute(IMarker.PRIORITY, IMarker.PRIORITY_HIGH);
+		} catch (CoreException e) {
+			// We tried
+			e.printStackTrace();
+		}*/
     }
 
     /* (non-Javadoc)
@@ -130,7 +186,6 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
         IFile file = ((FileEditorInput) getEditorInput()).getFile();
         Shell shell = UIHelper.getShellProvider().getShell();
 
-        // TODO fix this?
         IPath specRootPrefix = new Path(ResourceHelper.getParentDirName(ToolboxHandle.getRootModule()));
 
         FileDialog saveAsDialog = null;
@@ -159,10 +214,10 @@ public class TLAEditorAndPDFViewer extends FormEditor implements INavigationLoca
                 }
 
                 // fix the extension
-                if (!"tla".equals(newPath.getFileExtension()))
+                /*if (!"tla".equals(newPath.getFileExtension()))
                 {
                     newPath = newPath.addFileExtension("tla");
-                }
+                }*/
 
                 File newFile = newPath.toFile();
                 if (newFile.exists())

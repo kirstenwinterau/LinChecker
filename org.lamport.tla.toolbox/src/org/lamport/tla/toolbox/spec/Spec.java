@@ -15,6 +15,7 @@ import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.resources.IResource;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.Assert;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IAdaptable;
@@ -22,6 +23,7 @@ import org.eclipse.core.runtime.IAdapterManager;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.core.runtime.Path;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.SubProgressMonitor;
 import org.eclipse.jface.text.ITextSelection;
@@ -76,6 +78,9 @@ public class Spec implements IAdaptable {
      */
     private String openDeclModuleName;
     private ITextSelection openDeclSelection;
+    
+    // Indicates whether the tool to generate modules for linearisability from PL\0 algorithm is used by this spec
+    private boolean useModuleGeneratingTool = false;
 
     /**
      * The following fields are used to remember the result of a Show Uses
@@ -164,14 +169,30 @@ public class Spec implements IAdaptable {
      * @throws CoreException 
      */
     public static Spec createNewSpec(String name, String rootFilename,
-            boolean importExisting, IProgressMonitor monitor) throws CoreException {
+            boolean importExisting, boolean useModuleGeneratingTool, 
+            IProgressMonitor monitor) throws CoreException {
         IProject project = ResourceHelper.getProject(name, rootFilename, true,
                 importExisting, monitor);
         PreferenceStoreHelper.storeRootFilename(project, rootFilename);
-
+        PreferenceStoreHelper.storeUseModuleGenTool(project, useModuleGeneratingTool);
         Spec spec = new Spec(project);
+        spec.useLinearisabilityModuleGenerator(useModuleGeneratingTool);
         spec.setLastModified();
+        if(useModuleGeneratingTool) {
+        		String[] helperModules = {"FiniteSequences.tla", "Status.tla"};
+        		for(String helperModule: Arrays.asList(helperModules)) {
+	        	    String moduleLocation = Spec.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+	    		    moduleLocation = moduleLocation + "../org.lamport.tla.toolbox.tool.tlc/" + helperModule;
+	        		spec.addModule(moduleLocation);
+        		}
+        }
         return spec;
+    }
+    
+    public static Spec createNewSpec(String name, String rootFilename,
+            boolean importExisting,
+            IProgressMonitor monitor) throws CoreException {
+    	return createNewSpec(name, rootFilename, importExisting, false, monitor);
     }
 
     /**
@@ -181,6 +202,7 @@ public class Spec implements IAdaptable {
         this.rootFile = PreferenceStoreHelper.readProjectRootFile(project);
         this.specObj = null;
         this.status = IParseConstants.UNPARSED;
+        this.useModuleGeneratingTool = PreferenceStoreHelper.readUseModuleGenTool(project);
 
         // Read the current size of the spec. 
         size = ResourceHelper.getSizeOfJavaFileResource(this.project);
@@ -276,6 +298,10 @@ public class Spec implements IAdaptable {
      */
     public IFile getRootFile() {
         return this.rootFile;
+    }
+    
+    public void setRootFile(IFile file) {
+    		this.rootFile = file;
     }
 
     /**
@@ -624,5 +650,65 @@ public class Spec implements IAdaptable {
 			modules.add(module);
 		}
 		return modules;
+	}
+	
+	/**
+	 * Set whether or not the spec uses the linearizability module generator tool
+	 */
+	public void useLinearisabilityModuleGenerator(boolean use) {
+		this.useModuleGeneratingTool = use;
+	}
+	
+	/**
+	 * Returns true if the spec uses the linearizability module generator tool
+	 * @return
+	 */
+	public boolean usesLinearisabilityModuleGenerator() {
+		return useModuleGeneratingTool;
+	}
+	
+	/**
+	 * Try to add the given file to the spec as a module
+	 * @param moduleLocation The absolute path of the module
+	 * @return True if module successfully added, false otherwise
+	 */
+	public boolean addModule(String moduleLocation) {
+		if (moduleLocation != null) {
+			IFile module = ResourceHelper.getLinkedFile(this.getProject(), moduleLocation, false);
+			
+			// add .tla extension is the file does not have any extension
+			if (module != null && module.getFileExtension() == null) {
+				moduleLocation = ResourceHelper.getModuleFileName(moduleLocation);
+				module = ResourceHelper.getLinkedFile(this.getProject(), moduleLocation, false);
+			}
+
+			// check if it is a TLA file
+			if (!ResourceHelper.isModule(module)) {
+				return false;
+			} else {
+				if (module.isLinked()) {
+					;
+				} else {
+					IPath modulePath = new Path(moduleLocation);
+
+					if (!modulePath.toFile().exists()) {
+						try {
+							ResourcesPlugin.getWorkspace()
+									.run(ResourceHelper.createTLAModuleCreationOperation(modulePath), null);
+						} catch (CoreException e) {
+							e.printStackTrace();
+							return false;
+						}
+					}
+					// adding the file to the spec
+					if (ResourceHelper.isProjectParent(modulePath.removeLastSegments(1), this.getProject())) {
+						moduleLocation = ResourceHelper.PARENT_ONE_PROJECT_LOC + modulePath.lastSegment();
+					}
+					// adding the file to the spec
+					ResourceHelper.getLinkedFile(this.getProject(), moduleLocation, true);
+				}
+			}
+		}
+		return true;
 	}
 }

@@ -63,6 +63,7 @@ public class OpenSpecHandler extends AbstractHandler implements IHandler
         // been open for a previously opened spec
         UIHelper.hideView(TLC_ERROR_VIEW_ID);
 
+        //TODO: Integrate my  tool here?
         // rebuild current spec
         final Job job = new ToolboxJob("OpenSpecHandler is parsing spec...") {
 			@Override

@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.eclipse.core.resources.IMarker;
+import org.eclipse.jface.action.Action;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.StyleRange;
 import org.eclipse.swt.custom.StyledText;
@@ -41,6 +42,16 @@ public class ProblemView extends ViewPart
         bar = new ExpandBar(parent, SWT.V_SCROLL | SWT.BORDER);
         bar.setSpacing(8);
         UIHelper.setHelp(bar, "ProblemView");
+        Action action = new Action("Warning") {
+            @Override
+            public void run() {
+                ;
+            }
+        };
+        action.setEnabled(true);
+        action.setText("Warning");
+        getViewSite().getActionBars().getToolBarManager().add(action);
+
         fillData(Activator.getSpecManager().getSpecLoaded());
     }
 

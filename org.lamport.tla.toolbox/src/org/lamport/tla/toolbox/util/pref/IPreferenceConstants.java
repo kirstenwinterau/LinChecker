@@ -14,6 +14,10 @@ public interface IPreferenceConstants
      */
     public static final String P_PROJECT_ROOT_FILE      = "ProjectRootFile";
     /**
+     * Spec preference for whether or not linearisability module gen tool si used
+     */
+    public static final String P_USE_LIN_MODULE_GEN = "UseLinearisabilityModuleGen";
+    /**
      * Popup parser errors
      */
     public static final String I_PARSER_POPUP_ERRORS        = "parserPopupErrors";

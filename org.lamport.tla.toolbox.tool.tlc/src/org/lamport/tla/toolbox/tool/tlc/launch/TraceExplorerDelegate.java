@@ -678,7 +678,7 @@ public class TraceExplorerDelegate extends TLCModelLaunchDelegate implements ILa
         tlcjob.setPriority(Job.SHORT);
         tlcjob.setUser(true);
         // The TLC job itself does not do any file IO
-        tlcjob.setRule(mutexRule);
+        tlcjob.setRule(new MutexRule(""));
 
         tlcjob.schedule();
     }

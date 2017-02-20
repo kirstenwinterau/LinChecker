@@ -20,6 +20,7 @@ public class NewSpecWizard extends Wizard implements INewWizard
     private String specName;
 	private String rootFilename;
 	private boolean importExisting;
+	private boolean useModuleGeneratingTool;
 
 	/*
      * (non-Javadoc)
@@ -33,6 +34,7 @@ public class NewSpecWizard extends Wizard implements INewWizard
         rootFilename = page.getRootFilename();
         specName = page.getSpecName();
         importExisting = page.importExisting();
+        useModuleGeneratingTool = page.useModuleGeneratingTool();
 
         return true;
     }
@@ -80,5 +82,12 @@ public class NewSpecWizard extends Wizard implements INewWizard
 	 */
 	public boolean isImportExisting() {
 		return importExisting;
+	}
+	
+	/**
+	 * @return if module generating tool for linearizability should be used
+	 */
+	public boolean useModuleGeneratingTool() {
+		return useModuleGeneratingTool;
 	}
 }

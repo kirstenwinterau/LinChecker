@@ -73,6 +73,13 @@ public abstract class TLCJob extends AbstractJob implements IModelConfigurationC
     	this(specName, modelName, launch, 1);
     }
     
+    public TLCJob(String specName, String modelName, ILaunch launch, int workers)
+    {
+    	this(specName, modelName, launch, workers, "");
+    }
+    
+    protected String filePrefix = "";
+    
     /**
      * Creates a TLC job for a given spec and model
      * @param workers2 
@@ -81,12 +88,13 @@ public abstract class TLCJob extends AbstractJob implements IModelConfigurationC
      * @param launchDir
      * @param workers number of threads to be run in parallel
      */
-    public TLCJob(String specName, String modelName, ILaunch launch, int workers)
+    public TLCJob(String specName, String modelName, ILaunch launch, int workers, String filePrefix)
     {
         super("TLC run for " + modelName);
         this.specName = specName;
         this.modelName = modelName;
         this.workers = workers;
+        this.filePrefix = filePrefix;
 
         IProject project = ResourceHelper.getProject(specName);
         Assert.isNotNull(project, "Error accessing the spec project " + specName);
@@ -98,14 +106,14 @@ public abstract class TLCJob extends AbstractJob implements IModelConfigurationC
 
         if (launch.getLaunchMode().equals(TraceExplorerDelegate.MODE_TRACE_EXPLORE))
         {
-            this.rootModule = this.launchDir.getFile(ModelHelper.TE_FILE_TLA);
-            this.cfgFile = this.launchDir.getFile(ModelHelper.TE_FILE_CFG);
-            this.outFile = this.launchDir.getFile(ModelHelper.TE_FILE_OUT);
+            this.rootModule = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.TE_FILE_TLA);
+            this.cfgFile = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.TE_FILE_CFG);
+            this.outFile = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.TE_FILE_OUT);
         } else
         {
-            this.rootModule = this.launchDir.getFile(ModelHelper.FILE_TLA);
-            this.cfgFile = this.launchDir.getFile(ModelHelper.FILE_CFG);
-            this.outFile = this.launchDir.getFile(ModelHelper.FILE_OUT);
+            this.rootModule = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.FILE_TLA);
+            this.cfgFile = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.FILE_CFG);
+            this.outFile = this.launchDir.getFolder(filePrefix).getFile(ModelHelper.FILE_OUT);
         }
     }
 

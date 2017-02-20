@@ -43,6 +43,18 @@ public class PreferenceStoreHelper
         projectPrefs.put(IPreferenceConstants.P_PROJECT_ROOT_FILE, rootFilename);
         storePreferences(projectPrefs);        
     }
+	
+	/**
+    * Stores whether or not the project uses the module generating
+    * tool for checking linearisability in project preferences
+    * @param project
+    * @param useModuleGenTool
+    */
+	public static void storeUseModuleGenTool(IProject project, boolean useModuleGenTool) {
+		IEclipsePreferences projectPrefs = getProjectPreferences(project);
+        projectPrefs.putBoolean(IPreferenceConstants.P_USE_LIN_MODULE_GEN, useModuleGenTool);
+        storePreferences(projectPrefs);        
+   }
 
     /**
      * Retrieves project root file name
@@ -72,6 +84,25 @@ public class PreferenceStoreHelper
 		}
 		return null;
 	}
+	
+	/**
+     * Retrieves whether or not the project usese the linearisability module generating tool
+     * @param project
+     * @return
+     */
+	public static boolean readUseModuleGenTool(IProject project) {
+		final IEclipsePreferences projectPrefs = getProjectPreferences(project);
+		if (projectPrefs != null) {
+			boolean useModuleGenTool = projectPrefs.getBoolean(IPreferenceConstants.P_USE_LIN_MODULE_GEN, false);
+			Activator.getDefault().logDebug(
+						"useModuleGenTool = " + (useModuleGenTool? "TRUE" : "FALSE"));
+				return useModuleGenTool;
+		} else {
+			Activator.getDefault().logInfo("projectPrefs is null");
+		}
+		return false;
+	}
+
 
 	private static void convertAbsoluteToRelative(final IEclipsePreferences projectPrefs, final String path) {
 		projectPrefs.remove(IPreferenceConstants.P_PROJECT_ROOT_FILE);

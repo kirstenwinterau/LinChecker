@@ -22,6 +22,7 @@ import org.lamport.tla.toolbox.util.ResourceHelper;
 public class NewTLAModuleCreationOperation implements IWorkspaceRunnable
 {
     private IPath modulePath;
+    private boolean prefillForLinearisabilityEncoding;
 
     /**
      * @param name
@@ -29,6 +30,13 @@ public class NewTLAModuleCreationOperation implements IWorkspaceRunnable
     public NewTLAModuleCreationOperation(IPath module)
     {
         this.modulePath = module;
+        this.prefillForLinearisabilityEncoding = false;
+    }
+    
+    public NewTLAModuleCreationOperation(IPath module, boolean prefillForLinearisabilityEncoding)
+    {
+        this.modulePath = module;
+        this.prefillForLinearisabilityEncoding = prefillForLinearisabilityEncoding;
     }
 
     /* (non-Javadoc)
@@ -40,6 +48,11 @@ public class NewTLAModuleCreationOperation implements IWorkspaceRunnable
 
         byte[] content = ResourceHelper.getEmptyModuleContent(moduleFileName).append(ResourceHelper.getModuleClosingTag()).toString().getBytes();
         
+        byte[] prefill = getPrefillForLinearisabilityEncoding(moduleFileName);
+		if(prefillForLinearisabilityEncoding) {
+			content = prefill;
+		}
+		
         try
         {
         	// create parent folder unless pointing to root directory
@@ -68,6 +81,31 @@ public class NewTLAModuleCreationOperation implements IWorkspaceRunnable
             throw new CoreException( new Status(Status.ERROR, Activator.PLUGIN_ID, "Error creating TLA+ file", e));
         }
         
+    }
+    
+    private byte[] getPrefillForLinearisabilityEncoding(String moduleFileName) {
+        StringBuffer prefill = ResourceHelper.getEmptyModuleContent(moduleFileName);
+        prefill.append("EXTENDS Naturals" + System.lineSeparator() + System.lineSeparator());
+        prefill.append("\\* Add to these default variables with your own variables" + System.lineSeparator());
+        prefill.append("VARIABLE in, out" + System.lineSeparator());
+        prefill.append("\\* Replace this default constant with your own constants (including all constants you want in the model)" + System.lineSeparator());
+        prefill.append("CONSTANT exampleConstant" + System.lineSeparator() + System.lineSeparator());
+        prefill.append("\\* Insert any custom definitions that you want to appear in all modules here (e.g. ABS0)" + System.lineSeparator());
+		prefill.append(System.lineSeparator() + "\\* Always fill out the definitions below" + System.lineSeparator());
+		prefill.append("ABS == TRUE" + System.lineSeparator());
+		prefill.append("INV == TRUE" + System.lineSeparator());
+		prefill.append("STATUS == TRUE" + System.lineSeparator());
+		prefill.append("AOP == TRUE" + System.lineSeparator()  + System.lineSeparator());
+		prefill.append(System.lineSeparator() + "\\* Fill out D if you are checking for non-interference" + System.lineSeparator());
+		prefill.append("D == TRUE" + System.lineSeparator() + System.lineSeparator());
+		prefill.append(System.lineSeparator() + "\\* Fill out the status transitions to automatically invoke potential-linearisation-point mode" + System.lineSeparator());
+		prefill.append("IN_OUT == FALSE" + System.lineSeparator());
+		prefill.append("IN_INOUT == FALSE" + System.lineSeparator());
+		prefill.append("INOUT_OUT == FALSE" + System.lineSeparator());
+		prefill.append("INOUT_IN == FALSE" + System.lineSeparator());
+		prefill.append("STATUSHELPER == TRUE" + System.lineSeparator() + System.lineSeparator() + System.lineSeparator());
+		prefill.append(ResourceHelper.getModuleClosingTag());
+		return prefill.toString().getBytes();
     }
 
     /**

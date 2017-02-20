@@ -405,6 +405,7 @@ public class MainModelPage extends BasicFormPage implements IConfigurationConsta
         String symmetryType = null;
         // boolean symmetryUsed = false;
         // iterate over the constants
+        if(constants == null) constants = new ArrayList<Assignment>();
         for (int i = 0; i < constants.size(); i++)
         {
             Assignment constant = (Assignment) constants.get(i);
@@ -1087,7 +1088,16 @@ public class MainModelPage extends BasicFormPage implements IConfigurationConsta
         managedForm.addPart(invariantsPart);
         invariantsTable = invariantsPart.getTableViewer();
         dm.bindAttribute(MODEL_CORRECTNESS_INVARIANTS, invariantsTable, invariantsPart);
-
+        /*TableViewer tableViewer = invariantsPart.getTableViewer();
+        Vector input = ((Vector) tableViewer.getInput());
+        input.add(formula);
+        tableViewer.setInput(input);
+        if (tableViewer instanceof CheckboxTableViewer)
+        {
+            ((CheckboxTableViewer) tableViewer).setChecked(formula, true);
+        }
+        this.doMakeDirty();*/
+        
         // Properties
 
         // The following code added by LL on 29 May 2010 to expand the Property section

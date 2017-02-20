@@ -3,11 +3,15 @@ package org.lamport.tla.toolbox.ui.property;
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.resources.IProject;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.jface.preference.BooleanFieldEditor;
 import org.eclipse.jface.preference.IPreferenceStore;
 import org.eclipse.jface.preference.StringFieldEditor;
+import org.eclipse.jface.util.IPropertyChangeListener;
+import org.eclipse.jface.util.PropertyChangeEvent;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Control;
 import org.lamport.tla.toolbox.spec.Spec;
+import org.lamport.tla.toolbox.tool.ToolboxHandle;
 import org.lamport.tla.toolbox.ui.preference.LibraryPathComposite;
 import org.lamport.tla.toolbox.util.IHelpConstants;
 import org.lamport.tla.toolbox.util.UIHelper;
@@ -23,6 +27,7 @@ import org.lamport.tla.toolbox.util.pref.PreferenceStoreHelper;
 public class SpecPropertyPage extends GenericFieldEditorPropertyPage {
 	private StringFieldEditor rootFileEditor;
 	private StringFieldEditor directorySizeEditor;
+	private BooleanFieldEditor useLinModuleGenEditor;
 	private LibraryPathComposite libraryPathComposite;
 
 	protected Control createContents(Composite parent) {
@@ -56,6 +61,21 @@ public class SpecPropertyPage extends GenericFieldEditorPropertyPage {
 
 		libraryPathComposite = new LibraryPathComposite(this);
 
+		useLinModuleGenEditor = new BooleanFieldEditor(
+				IPreferenceConstants.P_USE_LIN_MODULE_GEN, 
+				"Use module-generating tool for verifying linearizability",
+				1, composite);
+		addEditor(useLinModuleGenEditor);
+		useLinModuleGenEditor.setPropertyChangeListener(new UseModuleGenPropertyChangeListener());
+		
+	}
+	
+	public class UseModuleGenPropertyChangeListener implements IPropertyChangeListener {
+		public void propertyChange(PropertyChangeEvent event) {
+			Spec spec = ToolboxHandle.getCurrentSpec();
+			if(spec == null) return;
+			spec.useLinearisabilityModuleGenerator(useLinModuleGenEditor.getBooleanValue());
+		}
 	}
 
 	/* (non-Javadoc)

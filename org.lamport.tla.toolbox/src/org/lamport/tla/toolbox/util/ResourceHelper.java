@@ -762,6 +762,15 @@ public class ResourceHelper
     {
         return new NewTLAModuleCreationOperation(rootNamePath);
     }
+    
+    /**
+     * @param rootNamePath
+     * @return
+     */
+    public static IWorkspaceRunnable createTLAModuleCreationOperation(IPath rootNamePath, boolean prefillForLinearisabilityEncoding)
+    {
+        return new NewTLAModuleCreationOperation(rootNamePath, prefillForLinearisabilityEncoding);
+    }
 
     /**
      * Writes contents stored in the string buffer to the file, replacing the content 

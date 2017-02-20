@@ -54,14 +54,19 @@ public class TLCProcessJob extends TLCJob
      */
     private long tlcEndTime;
 
+    public TLCProcessJob(String specName, String modelName, ILaunch launch, int workers)
+    {
+        this(specName, modelName, launch, workers, "");
+    }
+    
     /**
      * Constructs a process job
      * @param workers 
      * @param name
      */
-    public TLCProcessJob(String specName, String modelName, ILaunch launch, int workers)
+    public TLCProcessJob(String specName, String modelName, ILaunch launch, int workers, String filePrefix)
     {
-        super(specName, modelName, launch, workers);
+        super(specName, modelName, launch, workers, filePrefix);
     }
 
     /* (non-Javadoc)
@@ -144,7 +149,7 @@ public class TLCProcessJob extends TLCJob
             }
 
             // find the running process
-            this.process = findProcessForLaunch(launch);
+            this.process = findProcessForLaunch(launch, filePrefix);
 
             // step 4
             monitor.worked(STEP);
@@ -160,7 +165,7 @@ public class TLCProcessJob extends TLCJob
                 // register the broadcasting listener
 
                 final Model model = launch.getLaunchConfiguration().getAdapter(Model.class);
-
+                	model.setFilePrefix(filePrefix);
                 /*
                  * If TLC is being run for model checking then the stream kind passed to
                  * BroadcastStreamListener (second argument) is IProcessOutputSink.TYPE_OUT.
@@ -224,9 +229,13 @@ public class TLCProcessJob extends TLCJob
 
             } else
             {
-                // process not found
-                return new Status(IStatus.ERROR, TLCActivator.PLUGIN_ID,
-                        "Error launching TLC, the launched process cound not be found");
+            	    if(filePrefix.equals("")) {
+                    // process not found
+                    return new Status(IStatus.ERROR, TLCActivator.PLUGIN_ID,
+                            "Error launching TLC, the launched process cound not be found");
+            	    } else {
+            	    	    return Status.OK_STATUS;
+            	    }
             }
 
         } catch (CoreException e)
@@ -309,17 +318,21 @@ public class TLCProcessJob extends TLCJob
     /**
      * Retrieves a process to a given ILaunch
      * @param launch
+     * @param filePrefix sub-directory of model directory (if applicable, for batch runs)
      * @return
      */
-    private static IProcess findProcessForLaunch(ILaunch launch)
+    private static IProcess findProcessForLaunch(ILaunch launch, String filePrefix)
     {
         // find the process
         IProcess[] processes = DebugPlugin.getDefault().getLaunchManager().getProcesses();
         for (int i = 0; i < processes.length; i++)
         {
-            if (processes[i].getLaunch().equals(launch))
+         	IProcess process = processes[i];
+            if (process.getLaunch().equals(launch))
             {
-                return processes[i];
+            	    if(filePrefix.equals("") || process.getAttribute("org.eclipse.debug.core.ATTR_WORKING_DIRECTORY").contains(filePrefix)) {
+            	    	    return processes[i];
+            	    }
             }
         }
         return null;

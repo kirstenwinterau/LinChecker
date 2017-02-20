@@ -27,12 +27,21 @@ public class OpenModelHandler extends AbstractHandler implements IConfigurationC
 	 * @see org.eclipse.core.commands.AbstractHandler#execute(org.eclipse.core.commands.ExecutionEvent)
 	 */
 	public Object execute(final ExecutionEvent event) throws ExecutionException {
+		return executeInternal(event.getParameter((String) PARAM_MODEL_NAME), null);
+	}
+	public static Object executeInternal(String name, String specName) throws ExecutionException {
 		// The non-qualified model name (no spec prefix)
 		// The ModelHelper associates it implicitly with the current spec
-		final String modelName = event.getParameter((String) PARAM_MODEL_NAME);
+		final String modelName = name;
 		TLCUIActivator.getDefault().logDebug("Open handler invoked on " + modelName);
 
-		final Model model = ToolboxHandle.getCurrentSpec().getAdapter(TLCSpec.class).getModel(modelName);
+		Model model;
+		if(specName == null) {
+			model = ToolboxHandle.getCurrentSpec().getAdapter(TLCSpec.class).getModel(modelName);
+		} else {
+			model = ToolboxHandle.getSpecByName(specName).getAdapter(TLCSpec.class).getModel(modelName);
+		}
+		model.setFilePrefix("");
 		final IFile launchFile = model.getLaunchConfiguration().getFile();
 
 		if (!launchFile.exists()) {

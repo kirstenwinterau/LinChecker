@@ -151,6 +151,10 @@ public class SpecObj
     {
         rootModuleName = name;
     }
+    
+    public final void setPrimaryFileName(String pfn) {
+    		primaryFileName = pfn;
+    }
 
     /**
      * Returns the raw file name of the top-level module as passed to

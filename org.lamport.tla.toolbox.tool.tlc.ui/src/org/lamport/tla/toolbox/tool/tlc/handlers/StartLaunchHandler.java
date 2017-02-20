@@ -9,15 +9,20 @@ import org.eclipse.core.runtime.OperationCanceledException;
 import org.eclipse.core.runtime.jobs.Job;
 import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.swt.widgets.Shell;
+import org.eclipse.ui.IEditorInput;
+import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IEditorReference;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchSite;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.handlers.HandlerUtil;
+import org.lamport.tla.toolbox.spec.Spec;
+import org.lamport.tla.toolbox.tool.ToolboxHandle;
 import org.lamport.tla.toolbox.tool.tlc.launch.TLCModelLaunchDelegate;
 import org.lamport.tla.toolbox.tool.tlc.model.Model;
 import org.lamport.tla.toolbox.tool.tlc.ui.editor.ModelEditor;
 import org.lamport.tla.toolbox.ui.handler.OpenSpecHandler;
+import org.lamport.tla.toolbox.util.UIHelper;
 
 /**
  * Initiates a model checker run
@@ -30,14 +35,58 @@ public class StartLaunchHandler extends AbstractHandler {
 	private ModelEditor lastModelEditor;
 
 	public Object execute(ExecutionEvent event) throws ExecutionException {
-		final ModelEditor modelEditor = getModelEditor(event);
-		if (modelEditor != null) {
+		executeModel(event, false);
+		return null;
+	}
+	
+	public static String getCurrentModule() {
+		String moduleName = null;
+		if(!ToolboxHandle.getCurrentSpec().usesLinearisabilityModuleGenerator()) {
+			return null;
+		}
+		// Check that the current editor is a TLA+ module editor, before we set it as the root module
+		IEditorPart editor = UIHelper.getActiveEditor();
+		if(!(editor.getClass().getName().contains("TLAEditorAndPDFViewer"))) {
+			return null;
+	    }
+	
+	    // Make the module currently being edited the root module so that the model checker runs against this
+		IEditorInput input = UIHelper.getActiveEditor().getEditorInput();
+		moduleName = input.getName();
+		return moduleName.replace(".tla", "");
+	}
+	
+	private static String getExpectedModelFromModuleName(String moduleName) {
+		if(moduleName == null) return null;
+		if(moduleName.equals("Init")) return "Init";
+		if(moduleName.endsWith("_D")) return "Interference";
+		return "Simulation";
+	}
+    
+    public static void executeModel(ExecutionEvent event, boolean runAll) throws ExecutionException {
+    	    Spec spec = ToolboxHandle.getCurrentSpec();
+    		final String moduleName = getCurrentModule();
+    	    String expectedModel = getExpectedModelFromModuleName(moduleName);
+    	    
+    	    // Only enforce modules be run with specific models if in special mode for the tool
+    	    expectedModel = spec.usesLinearisabilityModuleGenerator() ? expectedModel : null;
+    		final ModelEditor modelEditor = getModelEditor(event, expectedModel);
+    	    
+    	    if(modelEditor == null && spec.usesLinearisabilityModuleGenerator()) {
+    	    		MessageDialog.openError(HandlerUtil.getActiveShell(event), 
+    	    				"Error launching model checker", 
+    	    				"The module " + moduleName + " can only be checked with the model '" + expectedModel 
+    	    				+ "'. Please open " + expectedModel + " then return to this module and try again.");
+    	    		return;
+    	    }
+    	    
+    	    if (modelEditor != null) {
 
 			final Model model = modelEditor.getModel();
 
 			// 0) model check already running for the given model
 			if (model.isRunning()) {
-				return null;
+				return;
 			}
 
 			// 0.5) Ask and save _spec_ editor if it's dirty
@@ -67,7 +116,7 @@ public class StartLaunchHandler extends AbstractHandler {
 								throw new ExecutionException(e.getMessage(), e);
 							}
 						} else {
-							return null;
+							return;
 						}
 					}
 				}
@@ -87,7 +136,7 @@ public class StartLaunchHandler extends AbstractHandler {
 				if (unlock) {
 					model.setLocked(false);
 				} else {
-					return null;
+					return;
 				}
 			}
 
@@ -99,18 +148,21 @@ public class StartLaunchHandler extends AbstractHandler {
 				if (unlock) {
 					model.recover();
 				} else {
-					return null;
+					return;
 				}
 			}
 
 			// finally launch (for some reason config.launch(..) does not work
 			// %)
-			modelEditor.launchModel(TLCModelLaunchDelegate.MODE_MODELCHECK, true);
-		}
-		return null;
-	}
 
-	private ModelEditor getModelEditor(final ExecutionEvent event) {
+			modelEditor.launchModel(TLCModelLaunchDelegate.MODE_MODELCHECK, true, runAll);
+			
+		}
+		return;
+    }
+
+	private static ModelEditor getModelEditor(final ExecutionEvent event, String name) {
+		ModelEditor lastModelEditor = null;
 		// is current editor a model editor?
 		final String activeEditorId = HandlerUtil.getActiveEditorId(event);
 		if (activeEditorId != null && activeEditorId.startsWith(ModelEditor.ID)) {
@@ -138,8 +190,11 @@ public class StartLaunchHandler extends AbstractHandler {
 				final IEditorReference[] editorReferences = page.getEditorReferences();
 				for (final IEditorReference editorRefs: editorReferences) {
 					if (editorRefs.getId().equals(ModelEditor.ID)) {
-						lastModelEditor = (ModelEditor) editorRefs.getEditor(true);
-						break;
+						ModelEditor thisModelEditor = (ModelEditor) editorRefs.getEditor(true);
+						if(name == null || (thisModelEditor.getModel().getName().contains(name))) {
+						    lastModelEditor = thisModelEditor;
+							break;
+						}
 					}
 				}
 			}
@@ -148,7 +203,7 @@ public class StartLaunchHandler extends AbstractHandler {
 		// open spec. E.g. lastModelEditor might still be around from when
 		// the user ran a it on spec X, but has switched to spec Y in the
 		// meantime. Closing the spec nulls the ModelEditor
-		if (lastModelEditor.isDisposed()) {
+		if (lastModelEditor != null && lastModelEditor.isDisposed()) {
 			lastModelEditor = null;
 		}
 		
