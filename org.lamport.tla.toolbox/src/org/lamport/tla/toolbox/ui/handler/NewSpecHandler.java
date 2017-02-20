@@ -23,11 +23,11 @@ import org.eclipse.jface.window.Window;
 import org.eclipse.jface.wizard.WizardDialog;
 import org.eclipse.swt.widgets.Shell;
 import org.eclipse.ui.IWorkbenchWindow;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.handlers.HandlerUtil;
 import org.eclipse.ui.progress.UIJob;
 import org.lamport.tla.toolbox.Activator;
 import org.lamport.tla.toolbox.spec.Spec;
-import org.lamport.tla.toolbox.tool.tlc.handlers.NewModelHandler;
 import org.lamport.tla.toolbox.ui.navigator.ToolboxExplorer;
 import org.lamport.tla.toolbox.ui.wizard.NewSpecWizard;
 import org.lamport.tla.toolbox.util.ResourceHelper;
@@ -157,9 +157,10 @@ public class NewSpecHandler extends AbstractHandler implements IHandler
 				Activator.getSpecManager().addSpec(spec);
 				
 				if(useModuleGeneratingTool) {
-					NewModelHandler.CreateModel(spec, "Init", Arrays.asList("ABS", "INV", "INVq", "D"));
-					NewModelHandler.CreateModel(spec, "Simulation", Arrays.asList("ABS", "INV", "STATUS"));
-					NewModelHandler.CreateModel(spec, "Interference", Arrays.asList("INVq", "D", "STATUSq"));
+					IPL0ModelCreator service = PlatformUI.getWorkbench().getService(IPL0ModelCreator.class);
+					service.createModel(spec, "Init", Arrays.asList("ABS", "INV", "INVq", "D"));
+					service.createModel(spec, "Simulation", Arrays.asList("ABS", "INV", "STATUS"));
+					service.createModel(spec, "Interference", Arrays.asList("INVq", "D", "STATUSq"));
 				}
 				
 				// open editor since the spec has been created now

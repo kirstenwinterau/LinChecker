@@ -41,8 +41,7 @@ public class GenerateModulesHandler extends AbstractHandler {
 		return super.isEnabled();
 	}
 	
-	@Override
-	public Object execute(ExecutionEvent event) throws ExecutionException {
+    public Object execute(ExecutionEvent event) throws ExecutionException {
 		final Shell shell = HandlerUtil.getActiveShell(event);
 		Spec spec = ToolboxHandle.getCurrentSpec();
 		

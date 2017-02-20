@@ -1,6 +1,5 @@
 package org.lamport.tla.toolbox.tool.tlc.handlers;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -397,90 +396,4 @@ public class NewModelHandler extends AbstractHandler implements IModelConfigurat
 
         return null;
     }
-    
-	
-    /**
-     * Create a new model and attach it to an existing spec. Used to auto-add modules
-     * to Spec for linearisability module generation tool. The module created has a 
-     * temporal formula behaviour spec named "Spec"
-     * 
-     * @param spec The spec to add the module to
-     * @param modelName The name of the new model
-     * @param invariants The invariants that the model should check
-     */
-	public static void CreateModel(Spec spec, String modelName, List<String> invariants) {      
-		if (spec == null)
-        {
-            // no spec
-        	TLCUIActivator.getDefault().logWarning("BUG: no spec");
-            return;
-        }
-
-        // project
-        IProject specProject = spec.getProject();
-
-        // get the launch manager
-        ILaunchManager launchManager = DebugPlugin.getDefault().getLaunchManager();
-
-        // get the launch type (model check)
-        ILaunchConfigurationType launchConfigurationType = launchManager
-                .getLaunchConfigurationType(TLCModelLaunchDelegate.LAUNCH_CONFIGURATION_TYPE);
-        
-        try
-        {
-            // create new launch instance
-            ILaunchConfigurationWorkingCopy launchCopy = launchConfigurationType.newInstance(specProject, specProject
-                    .getName()
-                    + Model.SPEC_MODEL_DELIM + modelName);
-
-            launchCopy.setAttribute(SPEC_NAME, spec.getName());
-            // it is easier to do launchCopy.getProject().getPersistentProperty(SPEC_ROOT_FILE)
-            // launchCopy.setAttribute(SPEC_ROOT_FILE, specRootModule.getLocation().toOSString());
-            launchCopy.setAttribute(MODEL_NAME, modelName);
-            
-            // We want models where the behaviour spec is the temporal formuala "Spec"
-            launchCopy.setAttribute(IModelConfigurationConstants.MODEL_BEHAVIOR_CLOSED_SPECIFICATION, "Spec");
-            launchCopy.setAttribute(IModelConfigurationConstants.MODEL_BEHAVIOR_SPEC_TYPE,
-                    IModelConfigurationDefaults.MODEL_BEHAVIOR_TYPE_SPEC_CLOSED); 
-            
-            // Turn off deadlock checking
-            launchCopy.setAttribute(IModelConfigurationConstants.MODEL_CORRECTNESS_CHECK_DEADLOCK, false);
-            
-            // For some reason, the model expects invariants to have a digit on the front, namely a '1', e.g. '1ABS'
-            List<String> formattedInvariants = new ArrayList<String>();
-            for(String inv: invariants) {
-            		formattedInvariants.add("1" + inv);
-            }
-            launchCopy.setAttribute(MODEL_CORRECTNESS_INVARIANTS, formattedInvariants);
-            
-            
-            
-            ILaunchConfiguration launchSaved = launchCopy.doSave();
-
-            final String name = modelName;
-            final String specName = spec.getName();
-            	
-            
-            // It is important to open up any model created, even if it annoys the user,
-            // as this is the only way all the parameters get received and saved
-            UIHelper.runUIAsync((new Runnable () {
-            		public void run () {
-            			try {
-							OpenModelHandler.executeInternal(name, specName);
-						} catch (ExecutionException e) {
-							e.printStackTrace();
-						}
-            		}
-            }));
-            
-            return;
-
-        } catch (CoreException e)
-        {
-            TLCUIActivator.getDefault().logError("Error creating a model", e);
-        }
-
-        return;
-	}
-
 }

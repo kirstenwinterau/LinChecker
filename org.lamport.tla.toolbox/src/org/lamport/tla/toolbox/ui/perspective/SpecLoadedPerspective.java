@@ -15,7 +15,7 @@ public class SpecLoadedPerspective implements IPerspectiveFactory
 
     public void createInitialLayout(IPageLayout layout)
     {
-    	layout.addStandaloneView(ID, true, IPageLayout.LEFT, 1.0f, layout.getEditorArea());
-    	layout.setEditorAreaVisible(false); //hide the editor in the perspective
+//    	layout.addStandaloneView(ID, true, IPageLayout.LEFT, 1.0f, layout.getEditorArea());
+//    	layout.setEditorAreaVisible(false); //hide the editor in the perspective
     }
 }
