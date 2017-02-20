@@ -12,7 +12,7 @@ import tlc2.util.IdThread;
 import tlc2.util.ObjLongTable;
 
 public class Worker extends IdThread implements IWorker {
-	
+	public static final TLCState POISONOUS_APPLE = new PoisonousApple();
 	/**
 	 * Multi-threading helps only when running on multiprocessors. TLC can
 	 * pretty much eat up all the cycles of a processor running single threaded.
@@ -46,7 +46,7 @@ public class Worker extends IdThread implements IWorker {
 		try {
 			while (running) {
 				curState = (TLCState) this.squeue.sDequeue();
-				if (curState == null) {
+				if (curState == null || curState == POISONOUS_APPLE) {
 					if (running == false) {
 						return;
 					}

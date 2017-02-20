@@ -162,6 +162,7 @@ public abstract class StateQueue implements IStateQueue {
 			if (this.numWaiting >= TLCGlobals.getNumWorkers()) {
 				if (isEmpty()) {
 					this.numWaiting--;
+					this.notifyAll();
 					return false;
 				}
 				// TODO what happens if control flow exits without ever

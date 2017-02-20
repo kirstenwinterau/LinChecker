@@ -696,6 +696,13 @@ public class ModelChecker extends AbstractChecker
 				}
 			}
 			assert this.theStateQueue.isEmpty();
+			// Add the same amount of poisonous apples into the state queue to
+			// single all workers to terminate. If we do not add anything into
+			// the queue for the workers to dequeue, workers will remain stuck
+			// in StateQueue#isAvail.
+			for (int i = 0; i < workers.length; i++) {
+				this.theStateQueue.enqueue(Worker.POISONOUS_APPLE);
+			}
 
 //            // Run liveness checking, if needed:
 //			// The ratio set in TLCGlobals defines an upper bound for the
