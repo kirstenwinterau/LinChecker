@@ -6,6 +6,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -272,8 +273,8 @@ public class GenerateModulesHandler extends AbstractHandler {
 		codeFilePath = codeFilePath.replace(" ", "%");
 		
 		// Get the location of the jar, which is stored in the root of the tool.tlc project under the name moduleGen.jar
-		String jarLocation = GenerateModulesHandler.class.getProtectionDomain().getCodeSource().getLocation().getPath();
-		jarLocation = jarLocation + "../org.lamport.tla.toolbox.tool.tlc/moduleGen.jar";
+		String jarLocation = Paths.get(GenerateModulesHandler.class.getProtectionDomain().getCodeSource().getLocation().toURI()).toFile().getAbsolutePath();
+		jarLocation = jarLocation + "/../org.lamport.tla.toolbox.tool.tlc/moduleGen.jar";
 		
 		// Invoke the tool, ensuring output and errors are appropriately redirected
 		String invocation = String.format("java -jar %s %s", jarLocation, codeFilePath);
